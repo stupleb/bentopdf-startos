@@ -2,19 +2,19 @@ import { setupManifest } from '@start9labs/start-sdk'
 import { long, short } from './i18n'
 
 export const manifest = setupManifest({
-  id: 'hello-world',
-  title: 'Hello World',
-  license: 'MIT',
-  packageRepo: 'https://github.com/Start9Labs/hello-world-startos',
-  upstreamRepo: 'https://github.com/Start9Labs/hello-world',
-  marketingUrl: 'https://start9.com/',
-  donationUrl: 'https://donate.start9.com/',
+  id: 'bentopdf',
+  title: 'BentoPDF',
+  license: 'AGPL-3.0',
+  packageRepo: 'https://github.com/Start9Labs/bentopdf-startos',
+  upstreamRepo: 'https://github.com/alam00000/bentopdf',
+  marketingUrl: 'https://www.bentopdf.com/',
+  donationUrl: null,
   description: { short, long },
   volumes: ['main'],
   images: {
-    'hello-world': {
-      source: { dockerTag: 'ghcr.io/start9labs/hello-world:2.0.0' },
-      arch: ['x86_64', 'aarch64', 'riscv64'],
+    bentopdf: {
+      source: { dockerBuild: {} },
+      arch: ['x86_64', 'aarch64'],
     },
   },
   alerts: {

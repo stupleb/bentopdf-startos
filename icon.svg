@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4F46E5"/>
-      <stop offset="100%" stop-color="#7C3AED"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <path d="M256 120c-88.4 0-160 58.1-160 129.8 0 41.4 23.6 78.4 60.5 103.2l-12.9 51.5a8 8 0 0 0 11.6 8.8l62.6-36.1c12.3 2.5 25.2 3.8 38.2 3.8 88.4 0 160-58.1 160-129.8S344.4 120 256 120z" fill="white" opacity="0.95"/>
-  <text x="256" y="270" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="64" fill="#4F46E5">Hello!</text>
+<svg width="166" height="166" viewBox="0 0 166 166" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Circular Background -->
+<circle cx="83" cy="83" r="83" fill="#111827"/>
+<g transform="translate(48, 12) scale(0.85)">
+<path d="M56.7848 80.9116L0 25.6211L24.8434 1.43151C26.8037 -0.47717 29.9814 -0.47717 31.9414 1.43151L85.177 53.2662L56.7848 80.9116Z" fill="#A5B4FC"/>
+<path d="M-1.30805e-05 80.7335L21.2939 101.467L42.5878 80.7335L21.2939 60L-1.30805e-05 80.7335Z" fill="#E0E7FF"/>
+<path d="M56.7848 83L81.6279 107.19C83.5881 109.098 83.5881 112.192 81.6279 114.101L28.3925 165.936L0 138.29L56.7848 83Z" fill="#6366F1"/>
+</g>
 </svg>

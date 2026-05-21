@@ -1,6 +1,6 @@
 # Contributing
 
-This repo packages [Hello World](https://github.com/Start9Labs/hello-world) for StartOS. It also doubles as the recommended starting template for new service packages — keep changes minimal and idiomatic.
+This repo packages [BentoPDF](https://github.com/alam00000/bentopdf) for StartOS.
 
 ## Documentation — keep it in sync
 
@@ -20,26 +20,37 @@ npm ci    # install dependencies
 make      # build the universal .s9pk
 ```
 
-## Updating the upstream version
+The `make` step invokes `start-cli s9pk pack`, which builds the project `Dockerfile`. That Dockerfile pulls the upstream `ghcr.io/alam00000/bentopdf-simple` image and layers in the three AGPL WASM npm packages (PyMuPDF, Ghostscript, CoherentPDF) under `/usr/share/nginx/html/wasm/`. `start-cli` needs a buildx builder with the `docker-container` driver to export the resulting image — if you see *"Docker exporter feature is currently not supported for docker driver"*, run `docker buildx create --driver docker-container --use` once.
 
-Hello World runs the `ghcr.io/start9labs/hello-world` image. To track a new upstream release:
+## Updating versions
 
-1. Bump `dockerTag` in `startos/manifest/index.ts` to `ghcr.io/start9labs/hello-world:<new version>`.
-2. Update `version` and `releaseNotes` in the file under `startos/versions/`, renaming it to the new version string. A *new* version file is only needed when the bump carries an `up`/`down` migration, or when you want the old release notes preserved in git history — see [Versions](https://docs.start9.com/packaging/versions.html).
-3. Rebuild (`make`), sideload the `.s9pk`, and confirm it starts.
-4. Review `README.md` and `instructions.md` for anything the bump changed.
+This package pins four upstream versions: the BentoPDF base image and the three WASM npm packages. They live in the project `Dockerfile`:
 
-## GitHub Actions
+```
+FROM ghcr.io/alam00000/bentopdf-simple:<TAG>
+ARG PYMUPDF_VERSION=...
+ARG GS_VERSION=...
+ARG CPDF_VERSION=...
+```
 
-Three workflows live under `.github/workflows/`. All three are thin wrappers that call reusable workflows in [`start9labs/shared-workflows`](https://github.com/Start9Labs/shared-workflows); the local files just configure triggers, pass inputs, and forward secrets. `release.yml` and `tagAndRelease.yml` additionally carry a guard that skips publishing while `startos/manifest/index.ts` still has `id: 'hello-world'` — so this template never auto-publishes itself. When you fork it and rename the package, the guard naturally lets your package through.
+To track a new BentoPDF release:
 
-- **`build.yml` — PR validation.** Triggered by `pull_request` against `master` (non-draft, ignoring `*.md` changes) and `workflow_dispatch`. Builds the `.s9pk` and uploads each arch as its own 14-day artifact. Use it during development: open a PR, wait for the green check, download the artifact from the run's summary page to sideload and smoke-test before merging. Cancels in-progress runs on the same branch/PR when new commits land.
+1. Bump the `FROM` tag in `Dockerfile` to the new `bentopdf-simple` tag.
+2. Look at upstream's `src/js/utils/wasm-provider.ts` at that tag and update `PYMUPDF_VERSION`, `GS_VERSION`, `CPDF_VERSION` in `Dockerfile` to match the `CDN_DEFAULTS` versions there. If they have not changed, leave them alone.
+3. Update `version` and `releaseNotes` in the file under `startos/versions/`, renaming the file to the new version string. A *new* version file is only needed when the bump carries an `up`/`down` migration, or when you want the old release notes preserved in git history — see [Versions](https://docs.start9.com/packaging/versions.html).
+4. Rebuild (`make`), sideload the `.s9pk`, and verify the **rewrite-wasm-urls** init oneshot completes cleanly. If it fails with *"jsdelivr URL still present after rewrite"*, the upstream bundle format changed and the `sed` patterns in `startos/main.ts` need updating.
+5. Review `README.md` and `instructions.md` for anything the bump changed.
 
-- **`tagAndRelease.yml` — master → test registry.** Triggered by push to `master` (ignoring `*.md`). Reads `version` from the manifest, checks the configured `REFERENCE_REGISTRY` (production), and skips if that version is already published there. Otherwise it force-pushes a `v<version>` tag at the current commit and chains into the shared `release.yml`, which builds per arch and publishes to `RELEASE_REGISTRY` (the test registry — `alpha` for Start9-maintained packages). This is the normal path: bump `version`, merge to `master`, the test-registry release happens automatically.
+## How the WASM rewrite works
 
-- **`release.yml` — tag → test registry.** Triggered by pushing a `v*.*` tag directly. Same downstream behavior as `tagAndRelease.yml`'s release step (build matrix → GitHub Release with manifest release notes + SHA256s → publish to `RELEASE_REGISTRY`, optionally via S3 if `S3_S9PKS_BASE_URL`/`S3_*_KEY` are configured), but without the production-registry version-check guard. Use it to re-cut a release at a specific commit, or to ship from a branch you haven't merged into `master`. For routine bumps, prefer letting `tagAndRelease.yml` do this for you.
+BentoPDF v2.0+ stopped bundling the AGPL WASM libraries (PyMuPDF, Ghostscript, CoherentPDF) and defers them to a jsdelivr CDN at runtime by default. Upstream's `src/js/utils/wasm-provider.ts` reads the URLs at Vite build time via `import.meta.env.VITE_WASM_*_URL`, falling back to the CDN. Those URLs are inlined as plain string literals into `assets/wasm-provider-*.js` in the prebuilt image.
 
-Promotion from the test registry (`alpha`) to `beta` and `prod` is a separate, manual step performed by maintainers — not part of these workflows.
+This package:
+
+1. **Bundles the libraries locally** via the project `Dockerfile`, which `npm pack`s them in a vendor stage and copies them under `/usr/share/nginx/html/wasm/{pymupdf,gs,cpdf}/`.
+2. **Rewrites the URLs at startup** via an init oneshot in `startos/main.ts` that `sed`s the jsdelivr URLs in the bundled JS to the local `/wasm/.../` paths. The oneshot is idempotent and fails loudly if the rewrite leaves any jsdelivr URLs behind.
+
+The result: zero-config, no per-browser setup, no external CDN traffic.
 
 ## How to contribute
 
