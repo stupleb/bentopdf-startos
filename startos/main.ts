@@ -40,7 +40,7 @@ echo "WASM URLs rewritten to local paths; brotli cache invalidated."
 export const main = sdk.setupMain(async ({ effects }) => {
   console.info(i18n('Starting BentoPDF'))
 
-  const appSub = await sdk.SubContainer.of(
+  const appSub = sdk.SubContainer.of(
     effects,
     { imageId: 'bentopdf' },
     sdk.Mounts.of().mountVolume({
