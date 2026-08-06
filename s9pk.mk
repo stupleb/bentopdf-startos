@@ -6,7 +6,12 @@ INGREDIENTS := $(shell start-cli s9pk list-ingredients 2>/dev/null)
 # Resolve the actual git dir so this works inside git worktrees, where .git
 # is a file pointing at <main>/.git/worktrees/<name> rather than a directory.
 GIT_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
-GIT_DEPS := $(if $(GIT_DIR),$(GIT_DIR)/HEAD $(GIT_DIR)/index)
+# These are rebuild triggers (the manifest embeds the commit hash), not build
+# requirements — pack degrades to a null gitHash on its own. $(wildcard) drops
+# whichever don't exist: a freshly `git init`ed repo has no index until the
+# first `git add`, and a hard prerequisite on it halts make with "No rule to
+# make target".
+GIT_DEPS := $(if $(GIT_DIR),$(wildcard $(GIT_DIR)/HEAD $(GIT_DIR)/index))
 ARCHES ?= x86 arm riscv
 # TARGETS is the list of leaf make-targets the build matrix fans out over.
 # Defaults to the arches; variant packages override (e.g. immich, ollama, vllm
@@ -63,12 +68,12 @@ x86 x86_64: arch/x86_64
 arm arm64 aarch64: arch/aarch64
 riscv riscv64: arch/riscv64
 
-$(BASE_NAME).s9pk: $(INGREDIENTS) $(GIT_DEPS)
+$(BASE_NAME).s9pk: $(INGREDIENTS) $(GIT_DEPS) | check-deps
 	@$(MAKE) --no-print-directory ingredients
 	@echo "   Packing '$@'..."
 	start-cli s9pk pack -o $@
 
-$(BASE_NAME)_%.s9pk: $(INGREDIENTS) $(GIT_DEPS)
+$(BASE_NAME)_%.s9pk: $(INGREDIENTS) $(GIT_DEPS) | check-deps
 	@$(MAKE) --no-print-directory ingredients
 	@echo "   Packing '$@'..."
 	start-cli s9pk pack --arch=$* -o $@
@@ -77,33 +82,18 @@ ingredients: $(INGREDIENTS)
 	@echo "   Re-evaluating ingredients..."
 
 install: | check-deps check-init
-	@HOST=$$(awk -F'/' '/^host:/ {print $$3}' ~/.startos/config.yaml); \
-	if [ -z "$$HOST" ]; then \
-		echo "Error: You must define \"host: http://server-name.local\" in ~/.startos/config.yaml"; \
-		exit 1; \
-	fi; \
-	S9PK=$$(ls -t *.s9pk 2>/dev/null | head -1); \
-	if [ -z "$$S9PK" ]; then \
+	@if [ -z "$$(ls *.s9pk 2>/dev/null)" ]; then \
 		echo "Error: No .s9pk file found. Run 'make' first."; \
 		exit 1; \
 	fi; \
-	printf "\n🚀 Installing %s to %s ...\n" "$$S9PK" "$$HOST"; \
+	S9PK=$$(start-cli s9pk select) || exit 1; \
+	printf "\n🚀 Installing %s ...\n" "$$S9PK"; \
 	start-cli package install -s "$$S9PK"
 
 publish: | all
-	@REGISTRY=$$(awk -F'/' '/^registry:/ {print $$3}' ~/.startos/config.yaml); \
-	if [ -z "$$REGISTRY" ]; then \
-		echo "Error: You must define \"registry: https://my-registry.tld\" in ~/.startos/config.yaml"; \
-		exit 1; \
-	fi; \
-	S3BASE=$$(awk -F'/' '/^s9pk-s3base:/ {print $$3}' ~/.startos/config.yaml); \
-	if [ -z "$$S3BASE" ]; then \
-		echo "Error: You must define \"s3base: https://s9pks.my-s3-bucket.tld\" in ~/.startos/config.yaml"; \
-		exit 1; \
-	fi; \
-	command -v s3cmd >/dev/null || \
+	@command -v s3cmd >/dev/null || \
 		(echo "Error: s3cmd not found. It must be installed to publish using s3." && exit 1); \
-	printf "\n🚀 Publishing to %s; indexing on %s ...\n" "$$S3BASE" "$$REGISTRY"; \
+	printf "\n🚀 Publishing ...\n"; \
 	for s9pk in *.s9pk; do \
 		age=$$(( $$(date +%s) - $$(stat -c %Y "$$s9pk") )); \
 		if [ "$$age" -gt 3600 ]; then \
@@ -116,9 +106,13 @@ publish: | all
 
 check-deps:
 	@command -v start-cli >/dev/null || \
-		(echo "Error: start-cli not found. Please see https://docs.start9.com/latest/developer-guide/sdk/installing-the-sdk" && exit 1)
+		(echo "Error: start-cli not found. See https://docs.start9.com/packaging/environment-setup.html" && exit 1)
 	@command -v npm >/dev/null || \
-		(echo "Error: npm not found. Please install Node.js and npm." && exit 1)
+		(echo "Error: npm not found. Install Node.js and npm. See https://docs.start9.com/packaging/environment-setup.html" && exit 1)
+	@command -v git >/dev/null || \
+		(echo "Error: git not found. Install git. See https://docs.start9.com/packaging/environment-setup.html" && exit 1)
+	@command -v jq >/dev/null || \
+		(echo "Error: jq not found. Install jq. See https://docs.start9.com/packaging/environment-setup.html" && exit 1)
 
 check-init:
 	@if [ ! -f ~/.startos/developer.key.pem ]; then \
@@ -128,13 +122,11 @@ check-init:
 
 javascript/index.js: $(shell find startos -type f) tsconfig.json node_modules
 	npm run check
+	@if [ -f node_modules/@start9labs/start-sdk/lint.mjs ]; then node node_modules/@start9labs/start-sdk/lint.mjs; else echo "   ⚠ SDK lint runner not found; skipping (update @start9labs/start-sdk)"; fi
 	npm run build
 
-node_modules: package-lock.json
+node_modules: package-lock.json package.json
 	npm ci
-
-package-lock.json: package.json
-	npm i
 
 clean:
 	@echo "Cleaning up build artifacts..."

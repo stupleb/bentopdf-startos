@@ -10,7 +10,7 @@ FROM public.ecr.aws/docker/library/node:20-alpine AS wasm
 
 WORKDIR /tmp/pkgs
 
-# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.4.
+# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.7.
 # Bump these together with the BentoPDF base image tag.
 ARG PYMUPDF_VERSION=0.11.16
 ARG GS_VERSION=0.1.1
@@ -35,7 +35,7 @@ RUN set -eux; \
     mv cpdf/dist/*   cpdf/ && rmdir cpdf/dist
 
 # ---- final stage: layer onto upstream's prebuilt -simple image -------------
-FROM ghcr.io/alam00000/bentopdf-simple:v2.8.4
+FROM ghcr.io/alam00000/bentopdf-simple:v2.8.7
 
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/pymupdf/ /usr/share/nginx/html/wasm/pymupdf/
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/gs/      /usr/share/nginx/html/wasm/gs/
