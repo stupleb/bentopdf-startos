@@ -2,20 +2,25 @@ import { i18n } from './i18n'
 import { sdk } from './sdk'
 import { uiPort } from './utils'
 
-// Rewrites the jsdelivr CDN defaults baked into BentoPDF's bundled
-// wasm-provider JS to point at the local /wasm/{pymupdf,gs,cpdf}/ paths that
-// our Dockerfile lays down. Idempotent: after the first run there are no
-// jsdelivr URLs left to match. Fails loudly if upstream's bundle format
-// changes in a way that leaves CDN URLs in place — we want to know at
-// startup, not when a user tries to convert a PDF.
+// Rewrites the jsdelivr CDN defaults baked into BentoPDF's bundled JS to
+// point at the local copies our Dockerfile lays down:
+//   - the WASM libraries (PyMuPDF, Ghostscript, CoherentPDF) in
+//     wasm-provider-*.js  ->  /wasm/{pymupdf,gs,cpdf}/
+//   - the PDF text editor's Noto fallback fonts (@embedpdf/fonts-*), whose
+//     base URL is inlined into several hash-suffixed chunks  ->  /fonts/embedpdf
+// Idempotent: after the first run there are no jsdelivr URLs left to match.
+// Fails loudly if upstream's bundle format changes in a way that leaves CDN
+// URLs in place — we want to know at startup, not when a user tries to
+// convert or edit a PDF.
 //
-// We also delete the brotli-precompressed copy of the bundle. The upstream
-// image ships wasm-provider-*.js.br alongside the .js, and nginx prefers
-// the .br for brotli-capable clients — which would silently re-introduce
-// the original jsdelivr URLs because the .br is unmodified. With the .br
-// missing, nginx falls back to serving the (rewritten) .js.
+// We also delete the brotli-precompressed copy of every rewritten chunk. The
+// upstream image ships *.js.br alongside each .js, and nginx prefers the .br
+// for brotli-capable clients — which would silently re-introduce the original
+// jsdelivr URLs because the .br is unmodified. With the .br missing, nginx
+// falls back to serving the (rewritten) .js.
 const REWRITE_WASM_URLS = `
 set -e
+# ---- WASM libraries ---------------------------------------------------------
 target='/usr/share/nginx/html/assets/wasm-provider-*.js'
 matched=$(ls $target 2>/dev/null || true)
 if [ -z "$matched" ]; then
@@ -30,11 +35,27 @@ sed -i -E \\
   -e 's|https://cdn\\.jsdelivr\\.net/npm/coherentpdf(@[0-9.]+)?/dist/|/wasm/cpdf/|g' \\
   $matched
 if grep -qE 'cdn\\.jsdelivr\\.net/npm/(@bentopdf/(pymupdf-wasm|gs-wasm)|coherentpdf)[/@]' $matched; then
-  echo "ERROR: jsdelivr URL still present after rewrite. Upstream bundle format may have changed."
+  echo "ERROR: jsdelivr WASM URL still present after rewrite. Upstream bundle format may have changed."
   exit 1
 fi
 rm -f /usr/share/nginx/html/assets/wasm-provider-*.js.br
-echo "WASM URLs rewritten to local paths; brotli cache invalidated."
+# ---- Editor fallback fonts --------------------------------------------------
+# Both BentoPDF's editor-fonts.ts and the @embedpdf engine build font URLs from
+# the same base, so one prefix rewrite covers every chunk that carries it. The
+# chunks are hash-suffixed, so find them by content rather than by name.
+fonts_matched=$(grep -l 'cdn\\.jsdelivr\\.net/npm/@embedpdf' /usr/share/nginx/html/assets/*.js 2>/dev/null || true)
+if [ -n "$fonts_matched" ]; then
+  sed -i -E -e 's|https://cdn\\.jsdelivr\\.net/npm/@embedpdf|/fonts/embedpdf|g' $fonts_matched
+  if grep -qE 'cdn\\.jsdelivr\\.net/npm/@embedpdf' $fonts_matched; then
+    echo "ERROR: jsdelivr editor-font URL still present after rewrite. Upstream bundle format may have changed."
+    exit 1
+  fi
+  for f in $fonts_matched; do rm -f "$f.br"; done
+  echo "Editor font URLs rewritten to local paths."
+else
+  echo "NOTE: no @embedpdf CDN URLs found in the bundle (upstream may now ship fonts locally); nothing to rewrite."
+fi
+echo "WASM and editor-font URLs rewritten to local paths; brotli caches invalidated."
 `
 
 export const main = sdk.setupMain(async ({ effects }) => {

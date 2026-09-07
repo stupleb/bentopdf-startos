@@ -1,16 +1,17 @@
 # BentoPDF for StartOS
 #
-# We use upstream's prebuilt -simple image and layer in the three AGPL WASM
-# packages (PyMuPDF, Ghostscript, CoherentPDF) that v2.0+ stopped bundling.
-# An init oneshot in main.ts rewrites the jsdelivr CDN defaults in the bundled
-# JS to point at these local paths.
+# We use upstream's prebuilt -simple image and layer in, locally, what
+# upstream defers to a jsdelivr CDN at runtime: the three AGPL WASM packages
+# (PyMuPDF, Ghostscript, CoherentPDF) that v2.0+ stopped bundling, and
+# (v2.8.8+) the PDF text editor's seven Noto fallback fonts. An init oneshot
+# in main.ts rewrites the CDN defaults in the bundled JS to these local paths.
 
-# ---- vendor stage: fetch the three npm WASM packages -----------------------
+# ---- vendor stage: fetch the npm packages ----------------------------------
 FROM public.ecr.aws/docker/library/node:20-alpine AS wasm
 
 WORKDIR /tmp/pkgs
 
-# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.7.
+# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.8.
 # Bump these together with the BentoPDF base image tag.
 ARG PYMUPDF_VERSION=0.11.16
 ARG GS_VERSION=0.1.1
@@ -34,9 +35,36 @@ RUN set -eux; \
     mv gs/assets/*   gs/   && rmdir gs/assets ; \
     mv cpdf/dist/*   cpdf/ && rmdir cpdf/dist
 
-# ---- final stage: layer onto upstream's prebuilt -simple image -------------
-FROM ghcr.io/alam00000/bentopdf-simple:v2.8.7
+# Editor fallback fonts. BentoPDF's PDF text editor (v2.8.8+) fetches seven
+# Noto fallback fonts from jsdelivr on demand -- see upstream
+# src/js/config/editor-fonts.ts and the @embedpdf engine's own loader, both
+# pinned to fonts-*@1.0.0. We ship only the single Regular-weight file per
+# package that upstream references (~23 MB in total; the packages carry extra
+# weights we never serve), laid out as <pkg>@<ver>/fonts/<file> so the
+# rewritten base URL resolves unchanged.
+ARG EMBEDPDF_FONTS_VERSION=1.0.0
 
-COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/pymupdf/ /usr/share/nginx/html/wasm/pymupdf/
-COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/gs/      /usr/share/nginx/html/wasm/gs/
-COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/cpdf/    /usr/share/nginx/html/wasm/cpdf/
+RUN set -eux; \
+    for pair in \
+      latin:NotoSans-Regular.ttf \
+      arabic:NotoNaskhArabic-Regular.ttf \
+      hebrew:NotoSansHebrew-Regular.ttf \
+      jp:NotoSansJP-Regular.otf \
+      kr:NotoSansKR-Regular.otf \
+      sc:NotoSansHans-Regular.otf \
+      tc:NotoSansHant-Regular.otf ; do \
+      p="${pair%%:*}"; f="${pair##*:}"; \
+      npm pack "@embedpdf/fonts-${p}@${EMBEDPDF_FONTS_VERSION}" ; \
+      mkdir -p "tmp-${p}" "fonts/embedpdf/fonts-${p}@${EMBEDPDF_FONTS_VERSION}/fonts" ; \
+      tar -xzf "embedpdf-fonts-${p}-${EMBEDPDF_FONTS_VERSION}.tgz" -C "tmp-${p}" --strip-components=1 ; \
+      cp "tmp-${p}/fonts/${f}" "fonts/embedpdf/fonts-${p}@${EMBEDPDF_FONTS_VERSION}/fonts/${f}" ; \
+      rm -rf "tmp-${p}" "embedpdf-fonts-${p}-${EMBEDPDF_FONTS_VERSION}.tgz" ; \
+    done
+
+# ---- final stage: layer onto upstream's prebuilt -simple image -------------
+FROM ghcr.io/alam00000/bentopdf-simple:v2.8.8
+
+COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/pymupdf/        /usr/share/nginx/html/wasm/pymupdf/
+COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/gs/             /usr/share/nginx/html/wasm/gs/
+COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/cpdf/           /usr/share/nginx/html/wasm/cpdf/
+COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/fonts/embedpdf/ /usr/share/nginx/html/fonts/embedpdf/
