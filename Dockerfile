@@ -7,7 +7,10 @@
 # in main.ts rewrites the CDN defaults in the bundled JS to these local paths.
 
 # ---- vendor stage: fetch the npm packages ----------------------------------
-FROM public.ecr.aws/docker/library/node:20-alpine AS wasm
+# --platform=$BUILDPLATFORM: this stage only downloads npm tarballs and shuffles
+# files, so it is architecture-independent -- run it natively on the build host
+# instead of under QEMU (emulated node hit SIGILL on the x86 release runner).
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:20-alpine AS wasm
 
 WORKDIR /tmp/pkgs
 
