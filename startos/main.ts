@@ -8,6 +8,8 @@ import { uiPort } from './utils'
 //     wasm-provider-*.js  ->  /wasm/{pymupdf,gs,cpdf}/
 //   - the PDF text editor's Noto fallback fonts (@embedpdf/fonts-*), whose
 //     base URL is inlined into several hash-suffixed chunks  ->  /fonts/embedpdf
+//   - the OCR tool's tesseract.js worker  ->  /tesseract/worker.min.js (our
+//     vendored copy, whose own core/langdata defaults the Dockerfile localizes)
 // Idempotent: after the first run there are no jsdelivr URLs left to match.
 // Fails loudly if upstream's bundle format changes in a way that leaves CDN
 // URLs in place — we want to know at startup, not when a user tries to
@@ -55,7 +57,23 @@ if [ -n "$fonts_matched" ]; then
 else
   echo "NOTE: no @embedpdf CDN URLs found in the bundle (upstream may now ship fonts locally); nothing to rewrite."
 fi
-echo "WASM and editor-font URLs rewritten to local paths; brotli caches invalidated."
+# ---- OCR worker (tesseract.js) ----------------------------------------------
+# The main bundle's workerPath default points at jsdelivr (with the version
+# interpolated at runtime, hence [^/]*). The worker itself is shipped by our
+# Dockerfile with its core/langdata defaults already patched.
+ocr_matched=$(grep -l 'cdn\\.jsdelivr\\.net/npm/tesseract\\.js@v' /usr/share/nginx/html/assets/*.js 2>/dev/null || true)
+if [ -n "$ocr_matched" ]; then
+  sed -i -E -e 's|https://cdn\\.jsdelivr\\.net/npm/tesseract\\.js@v[^/]*/dist/worker\\.min\\.js|/tesseract/worker.min.js|g' $ocr_matched
+  if grep -qE 'cdn\\.jsdelivr\\.net/npm/tesseract\\.js@v' $ocr_matched; then
+    echo "ERROR: jsdelivr OCR worker URL still present after rewrite. Upstream bundle format may have changed."
+    exit 1
+  fi
+  for f in $ocr_matched; do rm -f "$f.br"; done
+  echo "OCR worker URL rewritten to local path."
+else
+  echo "NOTE: no tesseract.js CDN worker URL found in the bundle (upstream may now ship it locally); nothing to rewrite."
+fi
+echo "WASM, editor-font and OCR URLs rewritten to local paths; brotli caches invalidated."
 `
 
 export const main = sdk.setupMain(async ({ effects }) => {

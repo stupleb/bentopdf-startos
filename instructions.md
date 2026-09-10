@@ -10,7 +10,7 @@ You've installed BentoPDF — a privacy-first PDF toolkit with 50+ tools that ru
 ## What you get on StartOS
 
 - **A self-contained PDF toolkit.** All tools — merge, split, edit, convert, sign, OCR — run client-side in your browser.
-- **No CDN dependency.** The heavyweight WebAssembly libraries (PyMuPDF, Ghostscript, CoherentPDF) and the PDF text editor's fallback fonts ship with the package and are served locally. Apart from the OCR tool (see Limitations), BentoPDF on StartOS does not contact any external CDN at runtime.
+- **No CDN dependency.** The heavyweight WebAssembly libraries (PyMuPDF, Ghostscript, CoherentPDF), the PDF text editor's fallback fonts, and the OCR engine with 18 languages ship with the package and are served locally. Apart from OCR in a language beyond those 18 (see Limitations), BentoPDF on StartOS does not contact any external CDN at runtime.
 - **Nothing to configure.** No accounts, no admin password, no setup wizard. Open the Web UI and start using it.
 
 ## Getting set up
@@ -26,5 +26,5 @@ Some advanced tools — Office-document conversion in particular — rely on bro
 ## Limitations
 
 - BentoPDF stores nothing on the StartOS box. Closing the browser tab discards in-progress work. Save your output PDFs locally before navigating away.
-- The package ships pinned versions of PyMuPDF, Ghostscript, CoherentPDF, and the text editor's fallback fonts. Newer versions of those arrive only when this package is updated.
-- The OCR tool currently loads its recognition engine (tesseract.js) and language data from public CDNs — the one tool that still reaches the internet. Every other tool runs fully locally.
+- The package ships pinned versions of PyMuPDF, Ghostscript, CoherentPDF, the text editor's fallback fonts, and the OCR engine. Newer versions of those arrive only when this package is updated.
+- OCR runs fully offline for 18 languages: Arabic, Chinese (Simplified and Traditional), Dutch, English, French, German, Hebrew, Hindi, Italian, Japanese, Korean, Polish, Portuguese, Russian, Spanish, Turkish and Ukrainian. Choosing any other OCR language downloads its language data from jsdelivr the first time it is used — the one case in which BentoPDF on StartOS reaches the internet.

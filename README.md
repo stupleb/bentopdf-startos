@@ -41,7 +41,7 @@
 | Architectures | x86_64, aarch64                                                                    |
 | Entrypoint    | Upstream nginx entrypoint, unmodified                                              |
 
-The image is produced by `start-cli` from this repo's `Dockerfile`. It uses upstream's prebuilt `bentopdf-simple` image as a base and adds the three AGPL WebAssembly libraries (PyMuPDF, Ghostscript, CoherentPDF) under `/usr/share/nginx/html/wasm/` and the PDF text editor's seven Noto fallback fonts under `/usr/share/nginx/html/fonts/embedpdf/`. A StartOS init oneshot rewrites the CDN defaults for both in the bundled JavaScript to point at those local paths on every container start.
+The image is produced by `start-cli` from this repo's `Dockerfile`. It uses upstream's prebuilt `bentopdf-simple` image as a base and adds the three AGPL WebAssembly libraries (PyMuPDF, Ghostscript, CoherentPDF) under `/usr/share/nginx/html/wasm/` the PDF text editor's seven Noto fallback fonts under `/usr/share/nginx/html/fonts/embedpdf/`, and the OCR engine (the tesseract.js worker, its core WASM, and language data for 18 languages) under `/usr/share/nginx/html/tesseract/`. A StartOS init oneshot rewrites the CDN defaults for all three in the bundled JavaScript to point at those local paths on every container start; the vendored tesseract worker's own core/language-data defaults are patched at image build time. One rule is added to upstream's nginx config: OCR language data we don't bundle is redirected to jsdelivr instead of failing.
 
 ---
 
@@ -59,7 +59,7 @@ BentoPDF does not store user data server-side; PDFs are processed entirely in th
 
 No setup wizard, no admin password, no first-run prompt. The web interface is usable the moment the service starts.
 
-On every container start, a StartOS init oneshot named **rewrite-wasm-urls** runs before the web server. It rewrites the WASM module URLs and the text editor's fallback-font URLs that BentoPDF would otherwise load from a public CDN, redirecting them at the locally bundled copies. The oneshot is idempotent and fails loudly if upstream's bundle layout changes in a way that prevents the rewrite, surfacing the issue at startup rather than at first PDF conversion.
+On every container start, a StartOS init oneshot named **rewrite-wasm-urls** runs before the web server. It rewrites the WASM module URLs, the text editor's fallback-font URLs, and the OCR worker URL that BentoPDF would otherwise load from a public CDN, redirecting them at the locally bundled copies. The oneshot is idempotent and fails loudly if upstream's bundle layout changes in a way that prevents the rewrite, surfacing the issue at startup rather than at first PDF conversion.
 
 ---
 
@@ -67,7 +67,7 @@ On every container start, a StartOS init oneshot named **rewrite-wasm-urls** run
 
 | StartOS-Managed                                                                                   | Upstream-Managed                                                  |
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| WASM module URLs (PyMuPDF, Ghostscript, CoherentPDF) and text-editor fallback-font URLs are pinned to local paths at every startup. | Default UI language, branding, and tool visibility (all defaults). |
+| WASM module URLs (PyMuPDF, Ghostscript, CoherentPDF) text-editor fallback-font URLs, and the OCR worker URL are pinned to local paths at every startup. | Default UI language, branding, and tool visibility (all defaults). |
 
 There is no user-facing configuration. The Advanced Settings → WASM Settings page inside BentoPDF remains visible but is unnecessary on StartOS — the libraries are already configured locally.
 
@@ -121,17 +121,17 @@ None.
 ## Limitations and Differences
 
 1. **No server-side persistence.** BentoPDF processes everything client-side; nothing is saved on the StartOS box.
-2. **WASM libraries and editor fonts are pinned at build time.** Upgrading the bundled PyMuPDF, Ghostscript, CoherentPDF, or the text editor's Noto fallback fonts requires a new package release, not a runtime setting change.
+2. **WASM libraries, editor fonts, and the OCR engine are pinned at build time.** Upgrading the bundled PyMuPDF, Ghostscript, CoherentPDF, the text editor's Noto fallback fonts, or tesseract.js and its language data requires a new package release, not a runtime setting change.
 3. **Office-document conversion requires a cross-origin-isolated browser context.** Some advanced features (LibreOffice WASM in particular) rely on `SharedArrayBuffer`, which needs HTTPS and the right COOP/COEP headers from the server. Access via a Tor `.onion` or a properly-configured HTTPS hostname.
-4. **OCR still uses public CDNs.** The OCR tool (tesseract.js) loads its worker, core WASM, and language data from jsdelivr / tessdata at runtime — the only remaining external fetch, present since the first release. Bundling it like the WASM libraries and fonts is tracked as a follow-up issue.
+4. **OCR languages beyond the bundled 18 fetch their data from jsdelivr.** The OCR engine (tesseract.js worker and core WASM) and language data for 18 languages ship in the package; selecting any other OCR language redirects its language-data download to jsdelivr on first use — the only remaining external fetch. Add languages by listing them in `tesseract-langs.txt`.
 
 ---
 
 ## What Is Unchanged from Upstream
 
 - The full BentoPDF tool catalog (merge, split, edit, convert, sign, OCR, etc.) is available.
-- The upstream nginx configuration, security headers, and entrypoint scripts are unmodified.
-- The user-facing UI is identical except that the locally-bundled WASM and editor-font URLs are configured automatically.
+- The upstream security headers and entrypoint scripts are unmodified; the nginx configuration is upstream's with one added rule (the OCR language-data fallback described above).
+- The user-facing UI is identical except that the locally-bundled WASM, editor-font, and OCR-engine URLs are configured automatically.
 
 ---
 
