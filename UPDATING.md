@@ -14,6 +14,8 @@ Every pin is in the `Dockerfile`.
 | `TESSERACT_VERSION`                             | `tesseract.js` and `tesseract.js-core`, which share a version |
 | `TESSDATA_VERSION`                              | The `@tesseract.js-data/*` language packages                  |
 
+The OCR text-layer fonts have no pin: the build downloads whichever fonts the release's JavaScript names on `rawcdn.githack.com`.
+
 Upstream's newest release:
 
 ```bash
@@ -61,8 +63,30 @@ A remote download the package neither bundles nor lists in `README.md` under Lim
 
 1. Set the tag on the `FROM` line of the `Dockerfile`.
 2. Set each `ARG` whose value changed upstream. If `editor-fonts.ts` names different font files, change the list in the font loop to match.
-3. Set `version` and `releaseNotes` in `startos/versions/current.ts`. The version is the release tag without its `v`, at revision `0`.
-4. Build. The build stops if the patched OCR worker still names a CDN, or if upstream's `nginx.conf` no longer has the `location ^~ /pdfjs-viewer/` line.
-5. Start the package on a server and read the service log. `rewrite-wasm-urls` ends with `WASM, editor-font and OCR URLs rewritten to local paths; brotli caches invalidated.` An `ERROR:` line instead names the kind of URL whose shape changed; the patterns for it are in `startos/main.ts`.
+3. If `TESSDATA_VERSION` or `EMBEDPDF_FONTS_VERSION` changed, check that the editor's four CJK fonts still contain every character the `jpn`, `kor`, `chi_sim` and `chi_tra` models can output: OCR writes those languages' text layer with them. With `fonttools` installed, every line must end in `missing 0`:
 
-A pin that lags the release passes both of those checks. It shows only in the browser, as a 404 on a library, font or OCR file, so open a tool that uses each before releasing: a conversion, the PDF editor with non-Latin text, and OCR.
+   ```bash
+   TESSDATA_VERSION=<ver> EMBEDPDF_FONTS_VERSION=<ver> python3 - <<'EOF'
+   import gzip, io, os, struct, urllib.request
+   from fontTools.ttLib import TTFont
+
+   def get(url):
+       return urllib.request.urlopen(url).read()
+
+   for lang, pkg, font in [('jpn', 'jp', 'NotoSansJP'), ('kor', 'kr', 'NotoSansKR'),
+                           ('chi_sim', 'sc', 'NotoSansHans'), ('chi_tra', 'tc', 'NotoSansHant')]:
+       data = gzip.decompress(get(f"https://cdn.jsdelivr.net/npm/@tesseract.js-data/{lang}@{os.environ['TESSDATA_VERSION']}/4.0.0_best_int/{lang}.traineddata.gz"))
+       offsets = struct.unpack_from('<%dq' % struct.unpack_from('<i', data)[0], data, 4)
+       start = offsets[21]  # the lstm-unicharset component
+       lines = data[start:min([o for o in offsets if o > start] + [len(data)])].decode().split('\n')
+       chars = {ord(c) for line in lines[1:1 + int(lines[0])] if line.split(' ')[0] != 'NULL' for c in line.split(' ')[0]}
+       cmap = TTFont(io.BytesIO(get(f"https://cdn.jsdelivr.net/npm/@embedpdf/fonts-{pkg}@{os.environ['EMBEDPDF_FONTS_VERSION']}/fonts/{font}-Regular.otf"))).getBestCmap()
+       print(lang, 'missing', len(chars - cmap.keys()))
+   EOF
+   ```
+
+4. Set `version` and `releaseNotes` in `startos/versions/current.ts`. The version is the release tag without its `v`, at revision `0`.
+5. Build. The build stops if the patched OCR worker still names a CDN, if the release's `rawcdn.githack.com` font URLs changed shape or name a Noto Sans CJK font the `Dockerfile` has no link for, or if upstream's `nginx.conf` no longer has the `location ^~ /pdfjs-viewer/` line.
+6. Start the package on a server and read the service log. `rewrite-wasm-urls` ends with `WASM, editor-font and OCR URLs rewritten to local paths.` An `ERROR:` line instead names the kind of URL whose shape changed; the patterns for it are in `startos/main.ts`.
+
+A pin that lags the release passes both of those checks. It shows only in the browser, as a 404 on a library, font or OCR file, so open a tool that uses each before releasing: a conversion, the PDF editor with non-Latin text, and OCR in a bundled language. Use a private window, since a browser that ran the previous version can keep its files, and watch the network panel: apart from OCR data for a language that isn't bundled, every request goes to the server.

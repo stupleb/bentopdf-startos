@@ -10,16 +10,12 @@ import { uiPort } from './utils'
 //     base URL is inlined into several hash-suffixed chunks  ->  /fonts/embedpdf
 //   - the OCR tool's tesseract.js worker  ->  /tesseract/worker.min.js (our
 //     vendored copy, whose own core/langdata defaults the Dockerfile localizes)
-// Idempotent: after the first run there are no jsdelivr URLs left to match.
+//   - the OCR text-layer fonts on rawcdn.githack.com  ->  /fonts/ocr/ (the
+//     Dockerfile mirrors every one the bundle names there)
+// Idempotent: after the first run there are no CDN URLs left to match.
 // Fails loudly if upstream's bundle format changes in a way that leaves CDN
 // URLs in place — we want to know at startup, not when a user tries to
 // convert or edit a PDF.
-//
-// We also delete the brotli-precompressed copy of every rewritten chunk. The
-// upstream image ships *.js.br alongside each .js, and nginx prefers the .br
-// for brotli-capable clients — which would silently re-introduce the original
-// jsdelivr URLs because the .br is unmodified. With the .br missing, nginx
-// falls back to serving the (rewritten) .js.
 const REWRITE_WASM_URLS = `
 set -e
 # ---- WASM libraries ---------------------------------------------------------
@@ -40,7 +36,6 @@ if grep -qE 'cdn\\.jsdelivr\\.net/npm/(@bentopdf/(pymupdf-wasm|gs-wasm)|coherent
   echo "ERROR: jsdelivr WASM URL still present after rewrite. Upstream bundle format may have changed."
   exit 1
 fi
-rm -f /usr/share/nginx/html/assets/wasm-provider-*.js.br
 # ---- Editor fallback fonts --------------------------------------------------
 # Both BentoPDF's editor-fonts.ts and the @embedpdf engine build font URLs from
 # the same base, so one prefix rewrite covers every chunk that carries it. The
@@ -52,7 +47,6 @@ if [ -n "$fonts_matched" ]; then
     echo "ERROR: jsdelivr editor-font URL still present after rewrite. Upstream bundle format may have changed."
     exit 1
   fi
-  for f in $fonts_matched; do rm -f "$f.br"; done
   echo "Editor font URLs rewritten to local paths."
 else
   echo "NOTE: no @embedpdf CDN URLs found in the bundle (upstream may now ship fonts locally); nothing to rewrite."
@@ -68,12 +62,23 @@ if [ -n "$ocr_matched" ]; then
     echo "ERROR: jsdelivr OCR worker URL still present after rewrite. Upstream bundle format may have changed."
     exit 1
   fi
-  for f in $ocr_matched; do rm -f "$f.br"; done
   echo "OCR worker URL rewritten to local path."
 else
   echo "NOTE: no tesseract.js CDN worker URL found in the bundle (upstream may now ship it locally); nothing to rewrite."
 fi
-echo "WASM, editor-font and OCR URLs rewritten to local paths; brotli caches invalidated."
+# ---- OCR text-layer fonts ---------------------------------------------------
+ocrfont_matched=$(grep -l 'rawcdn\\.githack\\.com/' /usr/share/nginx/html/assets/*.js 2>/dev/null || true)
+if [ -n "$ocrfont_matched" ]; then
+  sed -i -e 's|https://rawcdn\\.githack\\.com/|/fonts/ocr/|g' $ocrfont_matched
+  if grep -q 'rawcdn\\.githack\\.com' $ocrfont_matched; then
+    echo "ERROR: githack OCR font URL still present after rewrite. Upstream bundle format may have changed."
+    exit 1
+  fi
+  echo "OCR font URLs rewritten to local paths."
+else
+  echo "NOTE: no githack OCR font URLs found in the bundle (upstream may now ship them locally); nothing to rewrite."
+fi
+echo "WASM, editor-font and OCR URLs rewritten to local paths."
 `
 
 export const main = sdk.setupMain(async ({ effects }) => {

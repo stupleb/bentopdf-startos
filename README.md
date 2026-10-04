@@ -50,9 +50,12 @@ The `Dockerfile` adds these under the web root, `/usr/share/nginx/html`:
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `wasm/pymupdf/`, `wasm/gs/`, `wasm/cpdf/` | The PyMuPDF, Ghostscript and CoherentPDF WebAssembly libraries                                       |
 | `fonts/embedpdf/`                         | The seven Noto fonts the PDF editor falls back to                                                    |
+| `fonts/ocr/`                              | The fonts OCR writes the text layer of a searchable PDF with, one per script                         |
 | `tesseract/`                              | The OCR worker, its core runtime, and language data for the languages named in `tesseract-langs.txt` |
 
-The OCR worker is the one from the `tesseract.js` npm package, with its two built-in jsDelivr prefixes (core runtime and language data) changed to `/tesseract/` paths when the image is built.
+The OCR worker is the one from the `tesseract.js` npm package, with its two built-in jsDelivr prefixes (core runtime and language data) changed, when the image is built, to the `/tesseract/` paths of the address the page was loaded from.
+
+`fonts/ocr/` holds every font upstream's JavaScript names on `rawcdn.githack.com`, downloaded from GitHub when the image is built and laid out under the same paths. The four Noto Sans CJK fonts are links to the editor's Japanese, Korean and Chinese fonts in `fonts/embedpdf/` (see [Limitations and Differences](#limitations-and-differences)).
 
 `/etc/nginx/nginx.conf` is upstream's with one rule added: a request under `/tesseract/lang/` is answered from the bundled files, and for a language that is not bundled it is redirected to jsDelivr. Upstream's security headers, among them the cross-origin isolation headers its Office conversion depends on, are not touched.
 
@@ -97,7 +100,7 @@ nginx speaks plain HTTP; TLS is added by StartOS.
 
 There is nothing to set up: no account, no wizard, no task. The interface is usable as soon as the service has started.
 
-Every start runs `rewrite-wasm-urls` before nginx. It edits upstream's JavaScript in place so that the three WebAssembly libraries, the PDF editor's fallback fonts and the OCR worker are requested from the paths above instead of jsDelivr.
+Every start runs `rewrite-wasm-urls` before nginx. It edits upstream's JavaScript in place so that the three WebAssembly libraries, the PDF editor's fallback fonts, the OCR worker and the OCR text-layer fonts are requested from the paths above instead of jsDelivr and `rawcdn.githack.com`.
 
 After each edit it checks that no such URL is left. If one is, it prints a line starting `ERROR:` and exits, and nginx is not started.
 
@@ -128,12 +131,13 @@ Nothing is excluded, and a restored instance has nothing to rebuild: it serves t
 
 ## Limitations and Differences
 
-1. **Libraries, fonts and the OCR engine come from the server.** Upstream's build downloads the three WebAssembly libraries, the PDF editor's fallback fonts and the OCR worker and runtime from jsDelivr. Here they are part of the image, so their versions change only with a package update.
+1. **Libraries, fonts and the OCR engine come from the server.** Upstream's build downloads the three WebAssembly libraries, the PDF editor's fallback fonts and the OCR worker and runtime from jsDelivr, and OCR's text-layer fonts from `rawcdn.githack.com`. Here they are part of the image, so their versions change only with a package update.
 2. **OCR language data is bundled for a fixed set of languages.** `tesseract-langs.txt` lists them by Tesseract code; `osd` is the script and orientation data. Every other language in upstream's catalogue is still offered, and choosing one makes the browser download its data from jsDelivr.
-3. **OCR still downloads a font.** To write the text layer of a searchable PDF, upstream fetches a Noto font chosen by the OCR language from `rawcdn.githack.com` and caches it in the browser. The package does not bundle these fonts. Where the download fails, upstream uses Helvetica instead.
-4. **WASM Settings needs no input.** Upstream's page for pointing the three libraries at another location is still there; the built-in locations are the local copies.
-5. **Upstream's options cannot be set.** Upstream is configured when its image is built (branding, default language, hidden tools), by mounting a `config.json` (hidden tools and editor features), or by container environment (`PORT`, `DISABLE_IPV6`, `ROBOTS_NOINDEX`). The package sets none of these and has no action for them, so each is at upstream's default.
-6. **x86_64 and aarch64 only.** Upstream publishes its image for those two architectures.
+3. **OCR's text layer for Chinese, Japanese and Korean uses the editor's fonts.** Upstream downloads the full Noto Sans CJK fonts for these languages. The package serves the editor's Japanese, Korean, Simplified and Traditional Chinese Noto fonts in their place, which contain every character the bundled OCR models for those languages can output. The text layer is invisible, so pages look the same; with **Embed Full Fonts** turned on, the PDF carries the smaller font.
+4. **A browser can keep the previous version's files after an update.** The package changes some of upstream's files without changing their addresses. Upstream's nginx tells browsers to keep them for a year, and over HTTPS its service worker keeps its own copies with no expiry. A browser that used a tool before an update can go on using the old files until the site's data is cleared in that browser.
+5. **WASM Settings needs no input.** Upstream's page for pointing the three libraries at another location is still there; the built-in locations are the local copies.
+6. **Upstream's options cannot be set.** Upstream is configured when its image is built (branding, default language, hidden tools), by mounting a `config.json` (hidden tools and editor features), or by container environment (`PORT`, `DISABLE_IPV6`, `ROBOTS_NOINDEX`). The package sets none of these and has no action for them, so each is at upstream's default.
+7. **x86_64 and aarch64 only.** Upstream publishes its image for those two architectures.
 
 ---
 
