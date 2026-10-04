@@ -97,7 +97,7 @@ nginx speaks plain HTTP; TLS is added by StartOS.
 
 There is nothing to set up: no account, no wizard, no task. The interface is usable as soon as the service has started.
 
-Every start runs `rewrite-wasm-urls` before nginx. It edits upstream's JavaScript in place so that the three WebAssembly libraries, the PDF editor's fallback fonts and the OCR worker are requested from the paths above instead of jsDelivr. It then deletes the precompressed `.br` copy of each file it changed, which nginx would otherwise serve in place of the edited one.
+Every start runs `rewrite-wasm-urls` before nginx. It edits upstream's JavaScript in place so that the three WebAssembly libraries, the PDF editor's fallback fonts and the OCR worker are requested from the paths above instead of jsDelivr.
 
 After each edit it checks that no such URL is left. If one is, it prints a line starting `ERROR:` and exits, and nginx is not started.
 
