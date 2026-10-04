@@ -1,18 +1,18 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2.8.8:1',
+  version: '2.8.8:2',
   releaseNotes: {
     en_US:
-      'OCR now runs locally for 18 languages — Arabic, Chinese (Simplified and Traditional), Dutch, English, French, German, Hebrew, Hindi, Italian, Japanese, Korean, Polish, Portuguese, Russian, Spanish, Turkish and Ukrainian — with the recognition engine and language data bundled, so no CDN is contacted for them. Other OCR languages download their language data from jsdelivr on first use. Everything else is unchanged.',
+      'Fixes OCR. In the 18 bundled languages it now runs entirely from your server, including the fonts for the searchable text it adds. If you used OCR before this update, clear BentoPDF’s site data in your browser once.',
     es_ES:
-      'El OCR ahora funciona localmente en 18 idiomas — árabe, chino (simplificado y tradicional), neerlandés, inglés, francés, alemán, hebreo, hindi, italiano, japonés, coreano, polaco, portugués, ruso, español, turco y ucraniano — con el motor de reconocimiento y los datos de idioma incluidos, por lo que no se contacta ninguna CDN para ellos. Los demás idiomas de OCR descargan sus datos desde jsdelivr la primera vez que se usan. Todo lo demás permanece igual.',
+      'Corrige el OCR. En los 18 idiomas incluidos ahora funciona por completo desde tu servidor, incluidas las fuentes del texto buscable que añade. Si usaste el OCR antes de esta actualización, borra una vez los datos del sitio de BentoPDF en tu navegador.',
     de_DE:
-      'OCR läuft jetzt für 18 Sprachen lokal — Arabisch, Chinesisch (vereinfacht und traditionell), Niederländisch, Englisch, Französisch, Deutsch, Hebräisch, Hindi, Italienisch, Japanisch, Koreanisch, Polnisch, Portugiesisch, Russisch, Spanisch, Türkisch und Ukrainisch — mit gebündelter Erkennungs-Engine und Sprachdaten, sodass dafür kein CDN kontaktiert wird. Andere OCR-Sprachen laden ihre Sprachdaten bei der ersten Verwendung von jsdelivr. Alles andere bleibt unverändert.',
+      'Behebt einen Fehler in der OCR. In den 18 mitgelieferten Sprachen läuft sie jetzt vollständig von Ihrem Server, einschließlich der Schriften für den durchsuchbaren Text, den sie hinzufügt. Wenn Sie die OCR vor diesem Update verwendet haben, löschen Sie einmal die Websitedaten von BentoPDF in Ihrem Browser.',
     pl_PL:
-      'OCR działa teraz lokalnie dla 18 języków — arabskiego, chińskiego (uproszczonego i tradycyjnego), niderlandzkiego, angielskiego, francuskiego, niemieckiego, hebrajskiego, hindi, włoskiego, japońskiego, koreańskiego, polskiego, portugalskiego, rosyjskiego, hiszpańskiego, tureckiego i ukraińskiego — z dołączonym silnikiem rozpoznawania i danymi językowymi, więc dla nich nie jest kontaktowany żaden CDN. Pozostałe języki OCR pobierają dane językowe z jsdelivr przy pierwszym użyciu. Wszystko inne pozostaje bez zmian.',
+      'Naprawia OCR. W 18 dołączonych językach działa teraz w całości z Twojego serwera, łącznie z czcionkami dla dodawanego przeszukiwalnego tekstu. Jeśli przed tą aktualizacją korzystano z OCR, wyczyść raz dane witryny BentoPDF w przeglądarce.',
     fr_FR:
-      'L’OCR fonctionne désormais en local pour 18 langues — arabe, chinois (simplifié et traditionnel), néerlandais, anglais, français, allemand, hébreu, hindi, italien, japonais, coréen, polonais, portugais, russe, espagnol, turc et ukrainien — avec le moteur de reconnaissance et les données linguistiques inclus, donc aucun CDN n’est contacté pour ces langues. Les autres langues d’OCR téléchargent leurs données depuis jsdelivr à la première utilisation. Tout le reste est inchangé.',
+      'Corrige l’OCR. Dans les 18 langues incluses, l’OCR fonctionne désormais entièrement depuis votre serveur, y compris les polices du texte interrogeable ajouté. Si vous avez utilisé l’OCR avant cette mise à jour, effacez une fois les données du site BentoPDF dans votre navigateur.',
   },
   migrations: {
     up: async ({ effects }) => {},

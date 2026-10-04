@@ -5,7 +5,7 @@ export const manifest = setupManifest({
   id: 'bentopdf',
   title: 'BentoPDF',
   license: 'AGPL-3.0',
-  packageRepo: 'https://github.com/Start9Labs/bentopdf-startos',
+  packageRepo: 'https://github.com/stupleb/bentopdf-startos',
   upstreamRepo: 'https://github.com/alam00000/bentopdf',
   marketingUrl: 'https://www.bentopdf.com/',
   donationUrl: null,

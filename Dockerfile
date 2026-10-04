@@ -1,11 +1,12 @@
 # BentoPDF for StartOS
 #
 # We use upstream's prebuilt -simple image and layer in, locally, what
-# upstream defers to a jsdelivr CDN at runtime: the three AGPL WASM packages
+# upstream defers to CDNs at runtime: the three AGPL WASM packages
 # (PyMuPDF, Ghostscript, CoherentPDF) that v2.0+ stopped bundling, (v2.8.8+)
 # the PDF text editor's seven Noto fallback fonts, and the OCR engine
-# (tesseract.js worker + core WASM + language data). An init oneshot in
-# main.ts rewrites the CDN defaults in the bundled JS to these local paths.
+# (tesseract.js worker + core WASM + language data) with its text-layer fonts.
+# An init oneshot in main.ts rewrites the CDN defaults in the bundled JS to
+# these local paths.
 
 # ---- upstream image (named so the vendor stage can borrow its nginx.conf) --
 FROM ghcr.io/alam00000/bentopdf-simple:v2.8.8 AS upstream
@@ -68,6 +69,36 @@ RUN set -eux; \
       rm -rf "tmp-${p}" "embedpdf-fonts-${p}-${EMBEDPDF_FONTS_VERSION}.tgz" ; \
     done
 
+# OCR text-layer fonts. To write the searchable text of an OCR'd PDF, the OCR
+# tool fetches a Noto font per script from rawcdn.githack.com; every such URL
+# in upstream's bundle is mirrored under fonts/ocr/<path>, the prefix the
+# oneshot in main.ts rewrites it to. The four Noto Sans CJK files (66 MB) are
+# relative links to the editor's CJK fonts above instead, which map every
+# character the jpn, kor, chi_sim and chi_tra models output; OCR draws the
+# text layer invisible, so a font only has to cover the characters.
+COPY --from=upstream /usr/share/nginx/html/assets/*.js ./upstream-js/
+
+RUN set -eux; \
+    hits=$(( $(cat upstream-js/*.js | grep -o 'rawcdn\.githack\.com' | wc -l) )) ; \
+    urls=$(cat upstream-js/*.js | grep -oE 'https://rawcdn\.githack\.com/[A-Za-z0-9._/-]+\.(otf|ttf)' || true) ; \
+    if [ "$hits" -eq 0 ] || [ "$(( $(printf '%s\n' "$urls" | sed '/^$/d' | wc -l) ))" -ne "$hits" ]; then \
+      echo "ERROR: the bundle's rawcdn.githack.com font URLs changed shape ($hits mentions)." ; exit 1 ; \
+    fi ; \
+    for u in $(printf '%s\n' "$urls" | sort -u); do \
+      p="${u#https://rawcdn.githack.com/}" ; d="fonts/ocr/$p" ; mkdir -p "${d%/*}" ; \
+      e="$(dirname "$p" | sed 's|[^/][^/]*|..|g')/../embedpdf" ; \
+      case "${p##*/}" in \
+        NotoSansCJKjp-Regular.otf) ln -s "$e/fonts-jp@${EMBEDPDF_FONTS_VERSION}/fonts/NotoSansJP-Regular.otf" "$d" ;; \
+        NotoSansCJKkr-Regular.otf) ln -s "$e/fonts-kr@${EMBEDPDF_FONTS_VERSION}/fonts/NotoSansKR-Regular.otf" "$d" ;; \
+        NotoSansCJKsc-Regular.otf) ln -s "$e/fonts-sc@${EMBEDPDF_FONTS_VERSION}/fonts/NotoSansHans-Regular.otf" "$d" ;; \
+        NotoSansCJKtc-Regular.otf) ln -s "$e/fonts-tc@${EMBEDPDF_FONTS_VERSION}/fonts/NotoSansHant-Regular.otf" "$d" ;; \
+        NotoSansCJK*) echo "ERROR: no local font for $u" ; exit 1 ;; \
+        *) wget -q -O "$d" "https://raw.githubusercontent.com/$p" ;; \
+      esac ; \
+      [ -s "$d" ] ; \
+    done ; \
+    rm -rf upstream-js
+
 # OCR engine (tesseract.js). BentoPDF's OCR tool fetches the tesseract.js
 # worker from jsdelivr, and that worker in turn fetches the tesseract.js-core
 # WASM and per-language traineddata from jsdelivr -- those two defaults live
@@ -92,9 +123,11 @@ RUN set -eux; \
     # appends "/tesseract-core-<variant>.wasm.js" to corePath and
     # "<lang>/4.0.0_best_int/<lang>.traineddata.gz" to langPath, so the local
     # layout mirrors the CDN paths exactly. Fail the build if anything is left.
+    # The worker runs from a blob: URL, against which a bare path is invalid,
+    # so each default is prefixed with the worker's origin at runtime.
     sed -i \
-      -e 's|https://cdn\.jsdelivr\.net/npm/tesseract\.js-core@v|/tesseract/core/v|g' \
-      -e 's|https://cdn\.jsdelivr\.net/npm/@tesseract\.js-data/|/tesseract/lang/|g' \
+      -e 's|"https://cdn\.jsdelivr\.net/npm/tesseract\.js-core@v|self.location.origin+"/tesseract/core/v|g' \
+      -e 's|"https://cdn\.jsdelivr\.net/npm/@tesseract\.js-data/|self.location.origin+"/tesseract/lang/|g' \
       tesseract/worker.min.js ; \
     if grep -q 'cdn\.jsdelivr\.net' tesseract/worker.min.js; then \
       echo "ERROR: a CDN URL survived in the patched tesseract worker; its URL shapes changed." ; exit 1 ; \
@@ -135,5 +168,6 @@ COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/pymupdf/        /usr/share/nginx/
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/gs/             /usr/share/nginx/html/wasm/gs/
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/cpdf/           /usr/share/nginx/html/wasm/cpdf/
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/fonts/embedpdf/ /usr/share/nginx/html/fonts/embedpdf/
+COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/fonts/ocr/      /usr/share/nginx/html/fonts/ocr/
 COPY --from=wasm --chown=nginx:nginx /tmp/pkgs/tesseract/      /usr/share/nginx/html/tesseract/
 COPY --from=wasm /tmp/pkgs/nginx.conf /etc/nginx/nginx.conf
