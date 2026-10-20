@@ -15,7 +15,7 @@ FROM ghcr.io/alam00000/bentopdf-simple:v2.8.10 AS upstream
 # --platform=$BUILDPLATFORM: this stage only downloads npm tarballs and shuffles
 # files, so it is architecture-independent -- run it natively on the build host
 # instead of under QEMU (emulated node hit SIGILL on the x86 release runner).
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:20-alpine AS wasm
+FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/node:20-alpine AS wasm
 
 WORKDIR /tmp/pkgs
 
