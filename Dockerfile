@@ -9,7 +9,7 @@
 # these local paths.
 
 # ---- upstream image (named so the vendor stage can borrow its nginx.conf) --
-FROM ghcr.io/alam00000/bentopdf-simple:v2.8.8 AS upstream
+FROM ghcr.io/alam00000/bentopdf-simple:v2.8.10 AS upstream
 
 # ---- vendor stage: fetch the npm packages ----------------------------------
 # --platform=$BUILDPLATFORM: this stage only downloads npm tarballs and shuffles
@@ -19,7 +19,7 @@ FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:20-alpine AS w
 
 WORKDIR /tmp/pkgs
 
-# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.8.
+# Pinned versions match upstream's CDN_DEFAULTS in wasm-provider.ts at v2.8.10.
 # Bump these together with the BentoPDF base image tag.
 ARG PYMUPDF_VERSION=0.11.16
 ARG GS_VERSION=0.1.1
@@ -105,7 +105,7 @@ RUN set -eux; \
 # inside the worker itself, so they are patched here at build time in OUR
 # copy; the main bundle's workerPath default is rewritten by the oneshot in
 # main.ts. tesseract.js and tesseract.js-core share a version (7.0.0 in the
-# v2.8.8 bundle); @tesseract.js-data/* are all 1.0.0. Bump TESSERACT_VERSION
+# v2.8.10 bundle); @tesseract.js-data/* are all 1.0.0. Bump TESSERACT_VERSION
 # when the version in assets/tesseract-runtime-*.js changes. The languages
 # to ship are listed one per line in tesseract-langs.txt.
 ARG TESSERACT_VERSION=7.0.0
