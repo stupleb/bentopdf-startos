@@ -1,18 +1,18 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2.8.11:0',
+  version: '2.8.12:0',
   releaseNotes: {
     en_US:
-      'Updates BentoPDF to 2.8.11, which adds measurement tools to the PDF editor, favorite tools, a redesigned page organizer, a new compression engine, and Catalan and Persian.',
+      'Updates BentoPDF to 2.8.12, which adds sorting to file lists and fixes signature validation of document timestamps.',
     es_ES:
-      'Actualiza BentoPDF a 2.8.11, que añade herramientas de medición al editor de PDF, herramientas favoritas, un organizador de páginas rediseñado, un nuevo motor de compresión, y el catalán y el persa.',
+      'Actualiza BentoPDF a 2.8.12, que añade la ordenación de las listas de archivos y corrige la validación de firmas de las marcas de tiempo de documentos.',
     de_DE:
-      'Aktualisiert BentoPDF auf 2.8.11, das dem PDF-Editor Messwerkzeuge hinzufügt, außerdem Favoriten-Werkzeuge, einen überarbeiteten Seitenorganisator, eine neue Komprimierungs-Engine sowie Katalanisch und Persisch.',
+      'Aktualisiert BentoPDF auf 2.8.12, das Dateilisten sortierbar macht und die Signaturprüfung von Dokument-Zeitstempeln behebt.',
     pl_PL:
-      'Aktualizuje BentoPDF do wersji 2.8.11, która dodaje narzędzia pomiarowe w edytorze PDF, ulubione narzędzia, przeprojektowany organizator stron, nowy mechanizm kompresji oraz język kataloński i perski.',
+      'Aktualizuje BentoPDF do wersji 2.8.12, która dodaje sortowanie list plików i naprawia weryfikację podpisów znaczników czasu dokumentów.',
     fr_FR:
-      'Met à jour BentoPDF vers 2.8.11, qui ajoute des outils de mesure à l’éditeur PDF, des outils favoris, un organisateur de pages repensé, un nouveau moteur de compression, ainsi que le catalan et le persan.',
+      'Met à jour BentoPDF vers 2.8.12, qui ajoute le tri des listes de fichiers et corrige la validation des signatures d’horodatage de documents.',
   },
   migrations: {
     up: async ({ effects }) => {},
